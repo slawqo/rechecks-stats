@@ -1,5 +1,6 @@
 import datetime
 import re
+import sys
 
 from rechecks_stats import printer
 
@@ -45,10 +46,12 @@ class DataParser(object):
                 msg = comment['message']
                 re_ps = re.search(ps_regex, msg)
                 if not re_ps:
-                    self.printer.log_debug("No patch set found for comment: %s" % msg)
+                    self.printer.log_debug(
+                        "No patch set found for comment: %s" % msg)
                     continue
                 if int(re_ps.group(1)) != last_ps:
-                    self.printer.log_debug("Comment was not for last patch set. Skipping")
+                    self.printer.log_debug(
+                        "Comment was not for last patch set. Skipping")
                     continue
 
                 if self._regex.search(msg):
@@ -61,11 +64,11 @@ class DataParser(object):
                  'project': patch['project'],
                  'url': patch['url'],
                  'subject': patch['subject']})
-        points = sorted(points, key = lambda i: i['merged'])
+        points = sorted(points, key=lambda i: i['merged'])
 
         if not points:
-            error = 'Could not parse points from data. It is likely that the ' \
-                    'createdOn timestamp of the patches found is bogus.'
+            error = ('Could not parse points from data. It is likely that the '
+                     'createdOn timestamp of the patches found is bogus.')
             self.printer.print_error(error)
             sys.exit(1)
 
@@ -144,6 +147,3 @@ class AvgDataParser(DataParser):
             self._avg_data_points = {k: sum(v)/len(v) for k, v in data.items()}
 
         return self._avg_data_points
-
-
-

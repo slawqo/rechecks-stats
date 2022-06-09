@@ -3,6 +3,7 @@ import argparse
 
 parser = None
 
+
 def get_parser():
     global parser
     if parser is None:

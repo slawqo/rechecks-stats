@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 
-import datetime
-import json
-import os
-import re
 import sys
-
-from prettytable import PrettyTable
 
 from rechecks_stats import config
 from rechecks_stats import data_parser

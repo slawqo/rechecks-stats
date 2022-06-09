@@ -37,5 +37,3 @@ class Plotter(object):
         plt.ylabel('number of failed builds')
         plt.legend()
         plt.show()
-
-

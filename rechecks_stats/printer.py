@@ -56,16 +56,17 @@ class Printer(object):
                        self.config.time_window)
         for patch_data in points:
             self.print_msg('%s,%s,%s,%s' % (patch_data['subject'],
-                                   patch_data['url'],
-                                   patch_data['project'],
-                                   patch_data['counter']))
+                                            patch_data['url'],
+                                            patch_data['project'],
+                                            patch_data['counter']))
 
     def _print_rechecks_as_human_readable(self, points, avg):
         table = PrettyTable()
         table.field_names = ['Subject', 'URL', 'Project', 'Rechecks']
         avg_marker_drawed = False
         for patch_data in points:
-            # Data is already sorted so we can draw marker in single place in table
+            # Data is already sorted so we can draw marker in single place
+            # in table
             if (not avg_marker_drawed and
                     patch_data['counter'] < avg):
                 table.add_row(

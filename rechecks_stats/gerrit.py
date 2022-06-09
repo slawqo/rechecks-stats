@@ -1,9 +1,8 @@
 import json
 import os
-import sys
-
-from pathlib import Path
 import subprocess
+import sys
+from pathlib import Path
 
 from rechecks_stats import printer
 
@@ -44,20 +43,19 @@ class Gerrit(object):
         self._ensure_cache_dir_exists()
         query_file_name = self._get_file_from_query()
         if query_file_name in os.listdir(self._cache_dir):
-            with open('%s/%s' % (self._cache_dir, query_file_name)
-                    ) as query_file:
-                return json.load(query_file)
+            with open('%s/%s' % (self._cache_dir, query_file_name)) as f:
+                return json.load(f)
 
     def _put_json_data_in_cache(self, data):
         self._ensure_cache_dir_exists()
         query_file_name = self._get_file_from_query()
-        with open('%s/%s' % (self._cache_dir, query_file_name), 'w'
-                ) as query_file:
-            json.dump(data, query_file)
+        with open('%s/%s' % (self._cache_dir, query_file_name), 'w') as f:
+            json.dump(data, f)
 
     def _exec_cmd(self, command):
         process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            command, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, shell=True)
         output, error = process.communicate()
 
         return output, error
