@@ -49,9 +49,9 @@ class Gerrit(object):
                 return json.load(query_file)
 
     def _put_json_data_in_cache(self, data):
-        self._ensure_cache_dir_exists(cache_dir)
+        self._ensure_cache_dir_exists()
         query_file_name = self._get_file_from_query()
-        with open('%s/%s' % (cache_dir, query_file_name), 'w'
+        with open('%s/%s' % (self._cache_dir, query_file_name), 'w'
                 ) as query_file:
             json.dump(data, query_file)
 
@@ -71,7 +71,7 @@ class Gerrit(object):
                 'ssh -p 29418 review.opendev.org gerrit query --format=json '
                 '--current-patch-set --comments --start %(start)s %(query)s' %
                 {'start': start,
-                 'query': query})
+                 'query': self.query})
             result, error = self._exec_cmd(gerrit_cmd)
 
             if error:
@@ -100,7 +100,7 @@ class Gerrit(object):
     def get_json_data(self):
         if not self.config.no_cache:
             data = self._get_json_data_from_cache()
-        if not data:
+        else:
             data = self._get_json_data_from_query()
             self._put_json_data_in_cache(data)
         return data
