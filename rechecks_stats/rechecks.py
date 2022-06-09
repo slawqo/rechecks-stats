@@ -3,98 +3,18 @@
 import datetime
 import json
 import os
-from pathlib import Path
 import re
-import subprocess
 import sys
 
 import matplotlib.pyplot as plt
 from prettytable import PrettyTable
 
 from rechecks_stats import config
+from rechecks_stats import gerrit
+from rechecks_stats import printer
 
 # Script based on Assaf Muller's script
 # https://github.com/assafmuller/gerrit_time_to_merge/blob/master/time_to_merge.py
-
-CACHE_DIR_NAME = ".rechecks_cache"
-
-
-def log_debug(msg):
-    if debug:
-        print(msg)
-
-
-def exec_cmd(command):
-    process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    output, error = process.communicate()
-
-    return output, error
-
-
-
-
-def _get_file_from_query(query):
-    return query.replace('/', '_')
-
-
-
-def _ensure_cache_dir_exists(cache_dir):
-    try:
-        os.mkdir(cache_dir)
-    except OSError:
-        pass
-
-
-def get_json_data_from_cache(query, cache_dir):
-    _ensure_cache_dir_exists(cache_dir)
-    query_file_name = _get_file_from_query(query)
-    if query_file_name in os.listdir(cache_dir):
-        with open('%s/%s' % (cache_dir, query_file_name)) as query_file:
-            return json.load(query_file)
-
-
-def put_json_data_in_cache(query, data, cache_dir):
-    _ensure_cache_dir_exists(cache_dir)
-    query_file_name = _get_file_from_query(query)
-    with open('%s/%s' % (cache_dir, query_file_name), 'w') as query_file:
-        json.dump(data, query_file)
-
-
-def get_json_data_from_query(query):
-    data = []
-    start = 0
-
-    while True:
-        gerrit_cmd = (
-            'ssh -p 29418 review.opendev.org gerrit query --format=json '
-            '--current-patch-set --comments --start %(start)s %(query)s' %
-            {'start': start,
-             'query': query})
-        result, error = exec_cmd(gerrit_cmd)
-
-        if error:
-            print(error)
-            sys.exit(1)
-
-        result = result.decode('utf-8')
-        lines = result.split('\n')[:-2]
-        data += [json.loads(line) for line in lines]
-
-        if not data:
-            print('No patches found!')
-            sys.exit(1)
-
-        log_debug('Found metadata for %s more patches, %s total so far' %
-                  (len(lines), len(data)))
-        start += len(lines)
-        more_changes = json.loads(result.split('\n')[-2])['moreChanges']
-        if not more_changes:
-            break
-
-    data = sorted(data, key=lambda x: x['createdOn'])
-    return data
-
 
 def get_submission_timestamp(patch):
     try:
@@ -126,10 +46,10 @@ def get_points_from_data(data):
             msg = comment['message']
             re_ps = re.search(ps_regex, msg)
             if not re_ps:
-                log_debug("No patch set found for comment: %s" % msg)
+                printer.log_debug("No patch set found for comment: %s" % msg)
                 continue
             if int(re_ps.group(1)) != last_ps:
-                log_debug("Comment was not for last patch set. Skipping")
+                printer.log_debug("Comment was not for last patch set. Skipping")
                 continue
 
             if build_failed_regex.search(msg):
@@ -166,7 +86,7 @@ def get_avg_failures_per_week(points):
             point_date = datetime.date.fromtimestamp(point['merged'])
             point_year, point_week, _ = point_date.isocalendar()
             point_key = "%s-%s" % (point_year, point_week)
-            log_debug("Patch %s merged %s (week %s)" % (
+            printer.log_debug("Patch %s merged %s (week %s)" % (
                 point['id'], point_date, point_key))
             if point_key not in data.keys():
                 data[point_key] = [point['build_failures']]
@@ -185,7 +105,7 @@ def get_avg_failures_per_month(points):
         for point in points:
             point_date = datetime.date.fromtimestamp(point['merged'])
             point_key = "%s-%s" % (point_date.year, point_date.month)
-            log_debug("Patch %s merged %s (week %s)" % (
+            printer.log_debug("Patch %s merged %s (week %s)" % (
                 point['id'], point_date, point_key))
             if point_key not in data.keys():
                 data[point_key] = [point['build_failures']]
@@ -204,7 +124,7 @@ def get_avg_failures_per_year(points):
         for point in points:
             point_date = datetime.date.fromtimestamp(point['merged'])
             point_key = point_date.year
-            log_debug("Patch %s merged %s (week %s)" % (
+            printer.log_debug("Patch %s merged %s (week %s)" % (
                 point['id'], point_date, point_key))
             if point_key not in data.keys():
                 data[point_key] = [point['build_failures']]
@@ -311,30 +231,19 @@ def print_avg_as_human_readable(points, time_window):
 
 
 def main():
-    cache_path = "%s/%s" % (Path.home(), CACHE_DIR_NAME)
     args = config.get_parser()
-    global debug
-    debug = args.verbose
-    query = "status:merged branch:%s " % args.branch
-    if args.project:
-        query += 'project:%s ' % args.project
-    if args.newer_than:
-        query += ' -- -age:%dd' % int(args.newer_than)
+    global printer
+    printer = printer.get_printer(args)
 
-    log_debug("Query: %s" % query)
-    data = None
-    if not args.no_cache:
-        data = get_json_data_from_cache(query, cache_path)
-    if not data:
-        data = get_json_data_from_query(query)
-        put_json_data_in_cache(query, data, cache_path)
+    g = gerrit.Gerrit(args)
+    data = g.get_json_data()
 
     points = get_points_from_data(data)
 
     if not points:
         error = 'Could not parse points from data. It is likely that the ' \
                 'createdOn timestamp of the patches found is bogus.'
-        print(error)
+        printer.print_error(error)
         sys.exit(1)
 
     if args.only_average:
