@@ -4,6 +4,7 @@ import argparse
 import datetime
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -15,9 +16,11 @@ from prettytable import PrettyTable
 # Script based on Assaf Muller's script
 # https://github.com/assafmuller/gerrit_time_to_merge/blob/master/time_to_merge.py
 
+CACHE_DIR_NAME = ".rechecks_cache"
+
 
 def log_debug(msg):
-    if args.verbose:
+    if debug:
         print(msg)
 
 
@@ -94,25 +97,26 @@ def _get_file_from_query(query):
     return query.replace('/', '_')
 
 
-def get_json_data_from_cache(query):
+
+def _ensure_cache_dir_exists(cache_dir):
     try:
-        os.mkdir('cache')
+        os.mkdir(cache_dir)
     except OSError:
         pass
 
-    query = _get_file_from_query(query)
-    if query in os.listdir('cache'):
-        with open('cache/%s' % query) as query_file:
+
+def get_json_data_from_cache(query, cache_dir):
+    _ensure_cache_dir_exists(cache_dir)
+    query_file_name = _get_file_from_query(query)
+    if query_file_name in os.listdir(cache_dir):
+        with open('%s/%s' % (cache_dir, query_file_name)) as query_file:
             return json.load(query_file)
 
 
-def put_json_data_in_cache(query, data):
-    try:
-        os.mkdir('cache')
-    except OSError:
-        pass
-    query = _get_file_from_query(query)
-    with open('cache/%s' % query, 'w') as query_file:
+def put_json_data_in_cache(query, data, cache_dir):
+    _ensure_cache_dir_exists(cache_dir)
+    query_file_name = _get_file_from_query(query)
+    with open('%s/%s' % (cache_dir, query_file_name), 'w') as query_file:
         json.dump(data, query_file)
 
 
@@ -289,9 +293,9 @@ def get_avg_number_or_rechecks(points):
     return build_failures / len(points)
 
 
-def print_patch_rechecks(points):
+def print_patch_rechecks(points, report_format):
     points = sorted(points, key=lambda x: x['build_failures'], reverse=True)
-    if args.report_format == 'csv':
+    if report_format == 'csv':
         print_rechecks_as_csv(points)
     else:
         print_rechecks_as_human_readable(points)
@@ -342,9 +346,9 @@ def plot_avg_rechecks(points, time_window):
     plt.show()
 
 
-def print_avg_rechecks(points, time_window):
+def print_avg_rechecks(points, time_window, report_format):
     plot_points = get_avg_failures(points, time_window)
-    if args.report_format == 'csv':
+    if report_format == 'csv':
         print_avg_as_csv(plot_points, time_window)
     else:
         print_avg_as_human_readable(plot_points, time_window)
@@ -366,7 +370,10 @@ def print_avg_as_human_readable(points, time_window):
 
 
 def main():
+    cache_path = "%s/%s" % (Path.home(), CACHE_DIR_NAME)
     args = get_parser()
+    global debug
+    debug = args.verbose
     query = "status:merged branch:%s " % args.branch
     if args.project:
         query += 'project:%s ' % args.project
@@ -376,10 +383,10 @@ def main():
     log_debug("Query: %s" % query)
     data = None
     if not args.no_cache:
-        data = get_json_data_from_cache(query)
+        data = get_json_data_from_cache(query, cache_path)
     if not data:
         data = get_json_data_from_query(query)
-        put_json_data_in_cache(query, data)
+        put_json_data_in_cache(query, data, cache_path)
 
     points = get_points_from_data(data)
 
@@ -396,8 +403,8 @@ def main():
     if args.all_patches:
         if args.plot:
             plot_patch_rechecks(points)
-        print_patch_rechecks(points)
+        print_patch_rechecks(points, args.report_format)
     else:
         if args.plot:
             plot_avg_rechecks(points, args.time_window)
-        print_avg_rechecks(points, args.time_window)
+        print_avg_rechecks(points, args.time_window, args.report_format)
