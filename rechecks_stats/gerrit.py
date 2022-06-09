@@ -11,6 +11,10 @@ from rechecks_stats import printer
 CACHE_DIR_NAME = ".rechecks_cache"
 
 
+# Script based on Assaf Muller's script
+# https://github.com/assafmuller/gerrit_time_to_merge/blob/master/time_to_merge.py
+
+
 class Gerrit(object):
 
     def __init__(self, config):
