@@ -1,3 +1,4 @@
+import copy
 import datetime
 import re
 import sys
@@ -9,10 +10,15 @@ class DataParser(object):
 
     _points = None
 
-    def __init__(self, config, data):
+    def __init__(self, config, data, check_only_last_ps, comment_authors=None):
         self.printer = printer.get_printer(config)
         self.config = config
         self.data = data
+        self.check_only_last_ps = check_only_last_ps
+        self.comment_authors = []
+        if comment_authors:
+            self.comment_authors = [
+                author.lower() for author in comment_authors]
 
     @property
     def points(self):
@@ -33,28 +39,38 @@ class DataParser(object):
             (approval['grantedOn'] for approval in approvals if
              approval['type'] == 'SUBM'), patch['lastUpdated'])
 
-    def _get_points(self):
+    def _get_points(self, regex=None):
         points = []
-        ps_regex = re.compile(r"Patch Set (\d+)\:")
+        regex = regex or self._regex
+        if self.check_only_last_ps:
+            ps_regex = re.compile(r"Patch Set (\d+)\:")
 
         for patch in self.data:
-            last_ps = int(patch['currentPatchSet']['number'])
+            if self.check_only_last_ps:
+                last_ps = int(patch['currentPatchSet']['number'])
             counter = 0
-            for comment in patch['comments']:
-                if comment['reviewer']['name'].lower() != 'zuul':
-                    continue
+            comments = copy.deepcopy(patch['comments'])
+            if 'patchSets' in patch.keys():
+                for ps in patch['patchSets']:
+                    comments += [c for c in ps.get('comments', [])]
+            for comment in comments:
+                if self.comment_authors:
+                    comment_author = comment['reviewer']['name'].lower()
+                    if comment_author not in self.comment_authors:
+                        continue
                 msg = comment['message']
-                re_ps = re.search(ps_regex, msg)
-                if not re_ps:
-                    self.printer.log_debug(
-                        "No patch set found for comment: %s" % msg)
-                    continue
-                if int(re_ps.group(1)) != last_ps:
-                    self.printer.log_debug(
-                        "Comment was not for last patch set. Skipping")
-                    continue
+                if self.check_only_last_ps:
+                    re_ps = re.search(ps_regex, msg)
+                    if not re_ps:
+                        self.printer.log_debug(
+                            "No patch set found for comment: %s" % msg)
+                        continue
+                    if int(re_ps.group(1)) != last_ps:
+                        self.printer.log_debug(
+                            "Comment was not for last patch set. Skipping")
+                        continue
 
-                if self._regex.search(msg):
+                if regex.search(msg):
                     counter += 1
 
             points.append(
@@ -78,7 +94,9 @@ class DataParser(object):
 class AvgDataParser(DataParser):
 
     def __init__(self, config, data):
-        super(AvgDataParser, self).__init__(config, data)
+        super(AvgDataParser, self).__init__(config, data,
+                                            check_only_last_ps=True,
+                                            comment_authors=['zuul'])
         self._avg_data_points = None
         self._regex = re.compile(r"Build failed \((check|gate) pipeline\)")
 
@@ -147,3 +165,77 @@ class AvgDataParser(DataParser):
             self._avg_data_points = {k: sum(v)/len(v) for k, v in data.items()}
 
         return self._avg_data_points
+
+
+class BareRechecksDataParser(DataParser):
+
+    def __init__(self, config, data):
+        super(BareRechecksDataParser, self).__init__(config, data,
+                                                     check_only_last_ps=False)
+        self._avg_data_points = None
+        self._regex = re.compile(
+            r"((?!\'|\"[\w\s]*[\\']*[\w\s]*)\brecheck\b(?![\w\s]*[\\']*[\w\s]*\'|\"))$",
+            flags=re.IGNORECASE)
+        self._all_rechecks = None
+        self._bare_rechecks = None
+
+    def _get_all_rechecks(self):
+        if not self._all_rechecks:
+            regex = re.compile(
+                r"((?!\'|\"[\w\s]*[\\']*[\w\s]*)\brecheck\b(?![\w\s]*[\\']*[\w\s]*\'|\"))",
+                flags=re.IGNORECASE)
+            _all_rechecks = self._get_points(regex=regex)
+            self._all_rechecks = {
+                r['id']: r for r in _all_rechecks}
+        return self._all_rechecks
+
+    def _get_bare_rechecks(self):
+        if not self._bare_rechecks:
+            self._bare_rechecks = {r['id']: r for r in self.points}
+        return self._bare_rechecks
+
+    def get_bare_rechecks_stats_per_patch(self):
+        all_rechecks = self._get_all_rechecks()
+        bare_rechecks = self._get_bare_rechecks()
+        rechecks_stats = []
+        for patch_id, stats in all_rechecks.items():
+            p_stats = stats.copy()
+            p_stats['bare_rechecks'] = bare_rechecks[patch_id]['counter']
+            p_stats['all_rechecks'] = all_rechecks[patch_id]['counter']
+            if p_stats['all_rechecks'] != 0:
+                p_stats['bare_rechecks_percentage'] = (
+                    p_stats['bare_rechecks'] / p_stats['all_rechecks']) * 100
+            else:
+                p_stats['bare_rechecks_percentage'] = 0
+            rechecks_stats.append(p_stats)
+        return rechecks_stats
+
+    def get_bare_rechecks_stats_per_project(self):
+        all_rechecks = self._get_all_rechecks()
+        bare_rechecks = self._get_bare_rechecks()
+        rechecks_stats = {}
+        for patch_id in all_rechecks.keys():
+            patch_stats = all_rechecks[patch_id]
+            project = patch_stats['project']
+            if project not in rechecks_stats:
+                rechecks_stats[project] = {
+                    'project': project,
+                    'all_rechecks': all_rechecks[patch_id]['counter'],
+                    'bare_rechecks': bare_rechecks[patch_id]['counter']}
+            else:
+                rechecks_stats[project]['all_rechecks'] += (
+                        all_rechecks[patch_id]['counter'])
+                rechecks_stats[project]['bare_rechecks'] += (
+                        bare_rechecks[patch_id]['counter'])
+
+        for project in rechecks_stats.keys():
+            if rechecks_stats[project]['all_rechecks'] != 0:
+                rechecks_stats[project]['bare_rechecks_percentage'] = (
+                    rechecks_stats[project]['bare_rechecks'] /
+                    rechecks_stats[project]['all_rechecks']) * 100
+            else:
+                rechecks_stats[project]['bare_rechecks_percentage'] = 0
+
+        return sorted(
+            rechecks_stats.values(), key=lambda i: i['bare_rechecks_percentage'],
+            reverse=True)

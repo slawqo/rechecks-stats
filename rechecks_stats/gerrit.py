@@ -16,14 +16,18 @@ CACHE_DIR_NAME = ".rechecks_cache"
 
 class Gerrit(object):
 
-    def __init__(self, config):
+    def __init__(self, config, status=None, all_patch_sets=False):
         self.config = config
+        self.status = status
+        self.all_patch_sets = all_patch_sets
         self.printer = printer.get_printer(config)
         self._build_query(config)
         self._cache_dir = "%s/%s" % (Path.home(), CACHE_DIR_NAME)
 
     def _build_query(self, config):
-        self.query = "status:merged branch:%s " % config.branch
+        self.query = "branch:%s " % config.branch
+        if self.status:
+            self.query += 'status:%s ' % self.status
         if config.project:
             self.query += 'project:%s ' % config.project
         if config.newer_than:
@@ -67,9 +71,12 @@ class Gerrit(object):
         while True:
             gerrit_cmd = (
                 'ssh -p 29418 review.opendev.org gerrit query --format=json '
-                '--current-patch-set --comments --start %(start)s %(query)s' %
-                {'start': start,
-                 'query': self.query})
+                '--current-patch-set --comments ')
+            if self.all_patch_sets:
+                gerrit_cmd += '--patch-sets '
+
+            gerrit_cmd += '--start %(start)s %(query)s' % {'start': start,
+                                                           'query': self.query}
             result, error = self._exec_cmd(gerrit_cmd)
 
             if error:
@@ -96,9 +103,10 @@ class Gerrit(object):
         return data
 
     def get_json_data(self):
+        data = None
         if not self.config.no_cache:
             data = self._get_json_data_from_cache()
-        else:
+        if not data:
             data = self._get_json_data_from_query()
             self._put_json_data_in_cache(data)
         return data

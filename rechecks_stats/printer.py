@@ -81,3 +81,33 @@ class Printer(object):
                  patch_data['project'],
                  round(patch_data['counter'], 2)])
         self.print_msg(table)
+
+    def print_project_bare_rechecks(self, points, print_all_rows=False):
+        table = PrettyTable()
+        table.field_names = [
+            'Subject', 'URL', 'Project',
+            'Bare rechecks', 'All Rechecks', 'Bare rechecks [%]']
+        for patch_data in points:
+            if print_all_rows or patch_data['all_rechecks'] != 0:
+                table.add_row(
+                    [patch_data['subject'],
+                     patch_data['url'],
+                     patch_data['project'],
+                     patch_data['bare_rechecks'],
+                     patch_data['all_rechecks'],
+                     round(patch_data['bare_rechecks_percentage'], 2)])
+        self.print_msg(table)
+
+    def print_global_bare_rechecks(self, points, print_all_rows=False):
+        table = PrettyTable()
+        table.field_names = [
+            'Project', 'Bare rechecks', 'All Rechecks', 'Bare rechecks [%]']
+        for patch_data in points:
+            if print_all_rows or patch_data['all_rechecks'] != 0:
+                table.add_row(
+                    [patch_data['project'],
+                     patch_data['bare_rechecks'],
+                     patch_data['all_rechecks'],
+                     round(patch_data['bare_rechecks_percentage'], 2)])
+        self.print_msg(table)
+

@@ -10,11 +10,11 @@ from rechecks_stats import printer
 
 
 def main():
-    args = config.get_parser()
+    args = config.get_rechecks_stats_parser()
     _printer = printer.get_printer(args)
     _plotter = plotter.get_plotter(args)
 
-    g = gerrit.Gerrit(args)
+    g = gerrit.Gerrit(args, status='merged')
     data = g.get_json_data()
 
     # this will go to the new class/module, something like rechecks_data:
