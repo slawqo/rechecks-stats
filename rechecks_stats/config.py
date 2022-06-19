@@ -40,7 +40,7 @@ def get_rechecks_stats_parser():
                  'When this is set, options like "--all-patches", "--plot" '
                  'and "--time-window" have no effect.')
         rechecks_stats_parser.add_argument(
-            '--no-cache',
+            '--cache',
             action='store_true',
             help="Don't use cached results, always download new ones.")
         rechecks_stats_parser.add_argument(
@@ -80,7 +80,7 @@ def get_bare_rechecks_parser():
             '--newer-than',
             help='Only look at patches merged in the last so and so days.')
         bare_rechecks_parser.add_argument(
-            '--no-cache',
+            '--cache',
             action='store_true',
             help="Don't use cached results, always download new ones.")
         bare_rechecks_parser.add_argument(

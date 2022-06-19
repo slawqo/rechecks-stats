@@ -104,7 +104,7 @@ class Gerrit(object):
 
     def get_json_data(self):
         data = None
-        if not self.config.no_cache:
+        if self.config.cache:
             data = self._get_json_data_from_cache()
         if not data:
             data = self._get_json_data_from_query()
