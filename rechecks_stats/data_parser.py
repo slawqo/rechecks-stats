@@ -2,6 +2,7 @@ import copy
 import datetime
 import re
 import sys
+import time
 
 from rechecks_stats import printer
 
@@ -15,6 +16,7 @@ class DataParser(object):
         self.config = config
         self.data = data
         self.check_only_last_ps = check_only_last_ps
+        self.merge_timestamp_limit = int(self.config.newer_than) * 86400  ## [sec]
         self.comment_authors = []
         if comment_authors:
             self.comment_authors = [
@@ -45,7 +47,14 @@ class DataParser(object):
         if self.check_only_last_ps:
             ps_regex = re.compile(r"Patch Set (\d+)\:")
 
+        now = time.time()
+        oldest_merge = now - self.merge_timestamp_limit
         for patch in self.data:
+            patch_merge_date = self._get_submission_timestamp(patch)
+            if patch_merge_date and (patch_merge_date < oldest_merge):
+                self.printer.log_debug("Patch %s too old to be counted. "
+                                       "Skipping." % patch['url'])
+                continue
             if self.check_only_last_ps:
                 last_ps = int(patch['currentPatchSet']['number'])
             counter = 0
@@ -75,7 +84,7 @@ class DataParser(object):
 
             points.append(
                 {'id': patch['id'],
-                 'merged': self._get_submission_timestamp(patch),
+                 'merged': patch_merge_date,
                  'counter': counter,
                  'project': patch['project'],
                  'url': patch['url'],
