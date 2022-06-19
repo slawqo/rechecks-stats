@@ -16,7 +16,7 @@ class DataParser(object):
         self.config = config
         self.data = data
         self.check_only_last_ps = check_only_last_ps
-        self.merge_timestamp_limit = int(self.config.newer_than) * 86400  ## [sec]
+        self.merge_timestamp_limit = int(self.config.newer_than) * 86400  # [s]
         self.comment_authors = []
         if comment_authors:
             self.comment_authors = [
@@ -183,7 +183,7 @@ class BareRechecksDataParser(DataParser):
                                                      check_only_last_ps=False)
         self._avg_data_points = None
         self._regex = re.compile(
-            r"((?!\'|\"[\w\s]*[\\']*[\w\s]*)\brecheck\b(?![\w\s]*[\\']*[\w\s]*\'|\"))$",
+            r"((?!\'|\"[\w\s]*[\\']*[\w\s]*)\brecheck\b(?![\w\s]*[\\']*[\w\s]*\'|\"))$",  # noqa
             flags=re.IGNORECASE)
         self._all_rechecks = None
         self._bare_rechecks = None
@@ -191,7 +191,7 @@ class BareRechecksDataParser(DataParser):
     def _get_all_rechecks(self):
         if not self._all_rechecks:
             regex = re.compile(
-                r"((?!\'|\"[\w\s]*[\\']*[\w\s]*)\brecheck\b(?![\w\s]*[\\']*[\w\s]*\'|\"))",
+                r"((?!\'|\"[\w\s]*[\\']*[\w\s]*)\brecheck\b(?![\w\s]*[\\']*[\w\s]*\'|\"))",  # noqa
                 flags=re.IGNORECASE)
             _all_rechecks = self._get_points(regex=regex)
             self._all_rechecks = {
@@ -246,5 +246,6 @@ class BareRechecksDataParser(DataParser):
                 rechecks_stats[project]['bare_rechecks_percentage'] = 0
 
         return sorted(
-            rechecks_stats.values(), key=lambda i: i['bare_rechecks_percentage'],
+            rechecks_stats.values(),
+            key=lambda i: i['bare_rechecks_percentage'],
             reverse=True)

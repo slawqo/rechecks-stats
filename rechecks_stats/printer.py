@@ -110,4 +110,3 @@ class Printer(object):
                      patch_data['all_rechecks'],
                      round(patch_data['bare_rechecks_percentage'], 2)])
         self.print_msg(table)
-
