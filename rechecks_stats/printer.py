@@ -100,13 +100,27 @@ class Printer(object):
 
     def print_global_bare_rechecks(self, points, print_all_rows=False):
         table = PrettyTable()
-        table.field_names = [
-            'Project', 'Bare rechecks', 'All Rechecks', 'Bare rechecks [%]']
+        field_names = []
+        project_field_included = False
+        team_field_included = False
+        if 'project' in points[0].keys():
+            field_names.append('Project')
+            project_field_included = True
+        if 'team' in points[0].keys():
+            field_names.append('Team')
+            team_field_included = True
+        field_names += [
+            'Bare rechecks', 'All Rechecks', 'Bare rechecks [%]']
+        table.field_names = field_names
         for patch_data in points:
             if print_all_rows or patch_data['all_rechecks'] != 0:
-                table.add_row(
-                    [patch_data['project'],
-                     patch_data['bare_rechecks'],
-                     patch_data['all_rechecks'],
-                     round(patch_data['bare_rechecks_percentage'], 2)])
+                row_data = []
+                if project_field_included:
+                    row_data.append(patch_data['project'])
+                if team_field_included:
+                    row_data.append(patch_data['team'])
+                row_data += [patch_data['bare_rechecks'],
+                             patch_data['all_rechecks'],
+                             round(patch_data['bare_rechecks_percentage'], 2)]
+                table.add_row(row_data)
         self.print_msg(table)

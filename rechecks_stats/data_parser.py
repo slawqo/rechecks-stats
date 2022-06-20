@@ -4,6 +4,8 @@ import re
 import sys
 import time
 
+import yaml
+
 from rechecks_stats import printer
 
 
@@ -27,6 +29,24 @@ class DataParser(object):
         if self._points is None:
             self._points = self._get_points()
         return self._points
+
+    def _load_repos_to_teams_list(self):
+        if not self.config.projects_file:
+            return None
+        with open(self.config.projects_file, "r") as projects_yaml:
+            try:
+                projects = yaml.safe_load(projects_yaml)
+            except yaml.YAMLError as err:
+                self.printer.log_error("Error: %s while loading projects.yaml "
+                                       "file." % err)
+                sys.exit(2)
+        repos_to_teams_map = {}
+        for project_name, project_data in projects.items():
+            for deliverable in project_data.get('deliverables', {}).values():
+                repos = deliverable.get('repos')
+                for repo in repos:
+                    repos_to_teams_map[repo] = project_name
+        return repos_to_teams_map
 
     def _get_submission_timestamp(self, patch):
         try:
@@ -187,6 +207,7 @@ class BareRechecksDataParser(DataParser):
             flags=re.IGNORECASE)
         self._all_rechecks = None
         self._bare_rechecks = None
+        self._repos_to_teams_map = self._load_repos_to_teams_list()
 
     def _get_all_rechecks(self):
         if not self._all_rechecks:
@@ -237,6 +258,10 @@ class BareRechecksDataParser(DataParser):
                 rechecks_stats[project]['bare_rechecks'] += (
                         bare_rechecks[patch_id]['counter'])
 
+            if self._repos_to_teams_map:
+                rechecks_stats[project]['team'] = (
+                    self._repos_to_teams_map.get(project))
+
         for project in rechecks_stats.keys():
             if rechecks_stats[project]['all_rechecks'] != 0:
                 rechecks_stats[project]['bare_rechecks_percentage'] = (
@@ -244,6 +269,43 @@ class BareRechecksDataParser(DataParser):
                     rechecks_stats[project]['all_rechecks']) * 100
             else:
                 rechecks_stats[project]['bare_rechecks_percentage'] = 0
+
+        return sorted(
+            rechecks_stats.values(),
+            key=lambda i: i['bare_rechecks_percentage'],
+            reverse=True)
+
+    def get_bare_rechecks_stats_per_team(self):
+        # TODO: this has to be implemented still
+        all_rechecks = self._get_all_rechecks()
+        bare_rechecks = self._get_bare_rechecks()
+        rechecks_stats = {}
+        for patch_id in all_rechecks.keys():
+            patch_stats = all_rechecks[patch_id]
+            project = patch_stats['project']
+            team = self._repos_to_teams_map.get(project)
+            if not team:
+                self.printer.log_debug("Patch %s don't have team associated. "
+                                       "Skipping." % patch_id)
+                continue
+            if team not in rechecks_stats:
+                rechecks_stats[team] = {
+                    'team': team,
+                    'all_rechecks': all_rechecks[patch_id]['counter'],
+                    'bare_rechecks': bare_rechecks[patch_id]['counter']}
+            else:
+                rechecks_stats[team]['all_rechecks'] += (
+                        all_rechecks[patch_id]['counter'])
+                rechecks_stats[team]['bare_rechecks'] += (
+                        bare_rechecks[patch_id]['counter'])
+
+        for team in rechecks_stats.keys():
+            if rechecks_stats[team]['all_rechecks'] != 0:
+                rechecks_stats[team]['bare_rechecks_percentage'] = (
+                    rechecks_stats[team]['bare_rechecks'] /
+                    rechecks_stats[team]['all_rechecks']) * 100
+            else:
+                rechecks_stats[team]['bare_rechecks_percentage'] = 0
 
         return sorted(
             rechecks_stats.values(),

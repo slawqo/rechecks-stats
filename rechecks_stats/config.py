@@ -96,5 +96,19 @@ def get_bare_rechecks_parser():
             default=None,
             help='The OpenStack project to query. '
                  'For example openstack/neutron.')
+        bare_rechecks_parser.add_argument(
+            '--projects-file',
+            default=None,
+            help='path to the projects.yaml file from the OpenStack '
+                 'governance repo. If this is given, script will print '
+                 'affiliation of each repo to the OpenStack team. '
+                 'It is required if --stats-per-team is set.')
+        bare_rechecks_parser.add_argument(
+            '--stats-per-team',
+            action='store_true',
+            help='Statistics about bare rechecks are given per OpenStack '
+                 'team instead of repository. Path to the projects.yaml file '
+                 'from the OpenStack governance repository is required if '
+                 'this option is set.')
 
     return bare_rechecks_parser.parse_args()
