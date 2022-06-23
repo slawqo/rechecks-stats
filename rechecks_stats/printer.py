@@ -25,6 +25,12 @@ class Printer(object):
         if self.config.verbose:
             self.print_msg(msg)
 
+    @staticmethod
+    def _get_table():
+        table = PrettyTable()
+        table.align = "l"
+        return table
+
     def _print_avg_as_csv(self, points):
         self.print_msg("%s,Average number of failed builds" %
                        self.config.time_window)
@@ -32,7 +38,7 @@ class Printer(object):
             self.print_msg('%s,%s' % (week, value))
 
     def _print_avg_as_human_readable(self, points):
-        table = PrettyTable()
+        table = self._get_table()
         table.field_names = [self.config.time_window, "Rechecks"]
         for week, value in points.items():
             table.add_row([week, round(value, 2)])
@@ -61,7 +67,7 @@ class Printer(object):
                                             patch_data['counter']))
 
     def _print_rechecks_as_human_readable(self, points, avg):
-        table = PrettyTable()
+        table = self._get_table()
         table.field_names = ['Subject', 'URL', 'Project', 'Rechecks']
         avg_marker_drawed = False
         for patch_data in points:
@@ -83,7 +89,7 @@ class Printer(object):
         self.print_msg(table)
 
     def print_project_bare_rechecks(self, points, print_all_rows=False):
-        table = PrettyTable()
+        table = self._get_table()
         table.field_names = [
             'Subject', 'URL', 'Project',
             'Bare rechecks', 'All Rechecks', 'Bare rechecks [%]']
@@ -99,7 +105,7 @@ class Printer(object):
         self.print_msg(table)
 
     def print_global_bare_rechecks(self, points, print_all_rows=False):
-        table = PrettyTable()
+        table = self._get_table()
         field_names = []
         project_field_included = False
         team_field_included = False
