@@ -202,8 +202,11 @@ class BareRechecksDataParser(DataParser):
         super(BareRechecksDataParser, self).__init__(config, data,
                                                      check_only_last_ps=False)
         self._avg_data_points = None
-        self._regex = re.compile(
-            r"((?!\'|\"[\w\s]*[\\']*[\w\s]*)\brecheck\b(?![\w\s]*[\\']*[\w\s]*\'|\"))$",  # noqa
+        self._bare_rechecks_regex = re.compile(
+            r"(?i)^(Patch Set [0-9]+:)?( [\w\\+-]*)*(\n\n)?\s*recheck$",
+            flags=re.IGNORECASE)
+        self._all_rechecks_regex = re.compile(
+            r"(?i)^(Patch Set [0-9]+:)?( [\w\\+-]*)*(\n\n)?\s*recheck",
             flags=re.IGNORECASE)
         self._all_rechecks = None
         self._bare_rechecks = None
@@ -211,17 +214,16 @@ class BareRechecksDataParser(DataParser):
 
     def _get_all_rechecks(self):
         if not self._all_rechecks:
-            regex = re.compile(
-                r"((?!\'|\"[\w\s]*[\\']*[\w\s]*)\brecheck\b(?![\w\s]*[\\']*[\w\s]*\'|\"))",  # noqa
-                flags=re.IGNORECASE)
-            _all_rechecks = self._get_points(regex=regex)
             self._all_rechecks = {
-                r['id']: r for r in _all_rechecks}
+                r['id']: r for r in
+                self._get_points(regex=self._all_rechecks_regex)}
         return self._all_rechecks
 
     def _get_bare_rechecks(self):
         if not self._bare_rechecks:
-            self._bare_rechecks = {r['id']: r for r in self.points}
+            self._bare_rechecks = {
+                r['id']: r for r in
+                self._get_points(regex=self._bare_rechecks_regex)}
         return self._bare_rechecks
 
     def get_bare_rechecks_stats_per_patch(self):
