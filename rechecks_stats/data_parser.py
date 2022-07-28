@@ -4,9 +4,9 @@ import re
 import sys
 import time
 
-import yaml
-
 from rechecks_stats import printer
+
+import yaml
 
 
 class DataParser(object):
@@ -18,7 +18,9 @@ class DataParser(object):
         self.config = config
         self.data = data
         self.check_only_last_ps = check_only_last_ps
-        self.merge_timestamp_limit = int(self.config.newer_than) * 86400  # [s]
+        self.merge_timestamp_limit = time.time()
+        if self.config.newer_than:
+            self.merge_timestamp_limit = int(self.config.newer_than) * 86400
         self.comment_authors = []
         if comment_authors:
             self.comment_authors = [
@@ -61,7 +63,16 @@ class DataParser(object):
             (approval['grantedOn'] for approval in approvals if
              approval['type'] == 'SUBM'), patch['lastUpdated'])
 
-    def _get_points(self, regex=None):
+    def _get_comments_from_patchsets(self, patchsets):
+        comments = []
+        for ps in patchsets:
+            for c in ps.get('comments', []):
+                if not c.get('timestamp'):
+                    c['timestamp'] = ps.get('createdOn')
+                comments.append(c)
+        return comments
+
+    def _get_points(self, regex=None, comments_newer_than=None):
         points = []
         regex = regex or self._regex
         if self.check_only_last_ps:
@@ -69,6 +80,8 @@ class DataParser(object):
 
         now = time.time()
         oldest_merge = now - self.merge_timestamp_limit
+        if comments_newer_than:
+            oldest_possible_comment = now - int(comments_newer_than) * 86400
         for patch in self.data:
             patch_merge_date = self._get_submission_timestamp(patch)
             if patch_merge_date and (patch_merge_date < oldest_merge):
@@ -80,9 +93,15 @@ class DataParser(object):
             counter = 0
             comments = copy.deepcopy(patch['comments'])
             if 'patchSets' in patch.keys():
-                for ps in patch['patchSets']:
-                    comments += [c for c in ps.get('comments', [])]
+                comments += self._get_comments_from_patchsets(
+                    patch['patchSets'])
             for comment in comments:
+                if (comments_newer_than and
+                        comment.get('timestamp') and
+                        comment['timestamp'] < oldest_possible_comment):
+                    self.printer.log_debug(
+                        "Comment too old to be counted. Skipping.")
+                    continue
                 if self.comment_authors:
                     comment_author = comment['reviewer']['name'].lower()
                     if comment_author not in self.comment_authors:
@@ -216,14 +235,18 @@ class BareRechecksDataParser(DataParser):
         if not self._all_rechecks:
             self._all_rechecks = {
                 r['id']: r for r in
-                self._get_points(regex=self._all_rechecks_regex)}
+                self._get_points(
+                    regex=self._all_rechecks_regex,
+                    comments_newer_than=self.config.newer_than)}
         return self._all_rechecks
 
     def _get_bare_rechecks(self):
         if not self._bare_rechecks:
             self._bare_rechecks = {
                 r['id']: r for r in
-                self._get_points(regex=self._bare_rechecks_regex)}
+                self._get_points(
+                    regex=self._bare_rechecks_regex,
+                    comments_newer_than=self.config.newer_than)}
         return self._bare_rechecks
 
     def get_bare_rechecks_stats_per_patch(self):
