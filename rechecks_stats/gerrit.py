@@ -8,6 +8,7 @@ from rechecks_stats import printer
 
 
 CACHE_DIR_NAME = ".rechecks_cache"
+MAX_SSH_ERRORS = 10
 
 
 # Script based on Assaf Muller's script
@@ -67,6 +68,7 @@ class Gerrit(object):
     def _get_json_data_from_query(self):
         data = []
         start = 0
+        ssh_errors = 0
 
         while True:
             gerrit_cmd = (
@@ -80,8 +82,17 @@ class Gerrit(object):
             result, error = self._exec_cmd(gerrit_cmd)
 
             if error:
-                self.printer.log_error(error)
-                sys.exit(1)
+                if ssh_errors < MAX_SSH_ERRORS:
+                    ssh_errors += 1
+                    self.printer.log_debug(
+                        "SSH connection failed %s time. Error: %s" % (
+                            ssh_errors, error))
+                    continue
+                else:
+                    self.printer.log_error(
+                        "SSH connection failed %s time. Error: %s" % (
+                            ssh_errors, error))
+                    sys.exit(1)
 
             result = result.decode('utf-8')
             lines = result.split('\n')[:-2]
