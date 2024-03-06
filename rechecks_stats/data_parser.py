@@ -1,3 +1,4 @@
+import collections
 import copy
 import datetime
 import re
@@ -91,6 +92,7 @@ class DataParser(object):
             if self.check_only_last_ps:
                 last_ps = int(patch['currentPatchSet']['number'])
             counter = 0
+            reasons = []
             comments = copy.deepcopy(patch['comments'])
             if 'patchSets' in patch.keys():
                 comments += self._get_comments_from_patchsets(
@@ -120,11 +122,13 @@ class DataParser(object):
 
                 if regex.search(msg):
                     counter += 1
+                    reasons.append(msg)
 
             points.append(
                 {'id': patch['id'],
                  'merged': patch_merge_date,
                  'counter': counter,
+                 'reasons': reasons,
                  'project': patch['project'],
                  'url': patch['url'],
                  'subject': patch['subject']})
@@ -336,3 +340,37 @@ class BareRechecksDataParser(DataParser):
             rechecks_stats.values(),
             key=lambda i: i['bare_rechecks_percentage'],
             reverse=True)
+
+
+class RechecksReasonsDataParser(DataParser):
+
+    def __init__(self, config, data):
+        super(RechecksReasonsDataParser, self).__init__(
+            config, data, check_only_last_ps=False)
+
+        self._rechecks_regex = re.compile(
+            r"(?i)^(Patch Set [0-9]+:)?( [\w\\+-]*)*(\n\n)?\s*recheck.+$",
+            flags=re.IGNORECASE)
+        self._rechecks = None
+
+    def _get_rechecks(self):
+        if not self._rechecks:
+            self._rechecks = {
+                r['id']: r for r in
+                self._get_points(
+                    regex=self._rechecks_regex,
+                    comments_newer_than=self.config.newer_than)}
+        return self._rechecks
+
+    def get_rechecks_reasons(self):
+        rechecks = self._get_rechecks()
+        all_reasons = collections.defaultdict(int)
+        for patch_id in rechecks.keys():
+            patch_stats = rechecks[patch_id]
+            if patch_stats['reasons']:
+                for reason in patch_stats['reasons']:
+                    all_reasons[reason] += 1
+        return dict(
+            sorted(all_reasons.items(),
+                   key=lambda i:i[1],
+                   reverse=True))

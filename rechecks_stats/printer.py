@@ -130,3 +130,12 @@ class Printer(object):
                              round(patch_data['bare_rechecks_percentage'], 2)]
                 table.add_row(row_data)
         self.print_msg(table)
+
+    def print_reacheck_reasons(self, points):
+        table = self._get_table()
+        table.field_names = [
+            "Recheck comment", "Number of occurences"]
+        for reason, counter in points.items():
+            reason = reason.replace("\n", "")
+            table.add_row([reason, counter])
+        self.print_msg(table)

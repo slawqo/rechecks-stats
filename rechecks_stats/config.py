@@ -3,6 +3,7 @@ import argparse
 
 rechecks_stats_parser = None
 bare_rechecks_parser = None
+rechecks_reasons_parser = None
 
 
 def get_rechecks_stats_parser():
@@ -112,3 +113,33 @@ def get_bare_rechecks_parser():
                  'this option is set.')
 
     return bare_rechecks_parser.parse_args()
+
+
+def get_rechecks_reasons_parser():
+    global rechecks_reasons_parser
+    # TODO(slaweq): extract some of the config options to the common module
+    if rechecks_reasons_parser is None:
+        rechecks_reasons_parser = argparse.ArgumentParser(
+            description='Get reasons of the rechecks done '
+                        'in the project(s).')
+        rechecks_reasons_parser.add_argument(
+            '--newer-than',
+            help='Only look at patches merged in the last so and so days.')
+        rechecks_reasons_parser.add_argument(
+            '--cache',
+            action='store_true',
+            help="Use cached results, always download new ones.")
+        rechecks_reasons_parser.add_argument(
+            '--verbose',
+            action='store_true',
+            help='Be more verbose.')
+        rechecks_reasons_parser.add_argument(
+            '--branch',
+            default='master',
+            help='Branch to check. For example stable/stein.')
+        rechecks_reasons_parser.add_argument(
+            '--project',
+            default=None,
+            help='The OpenStack project to query. '
+                 'For example openstack/neutron.')
+    return rechecks_reasons_parser.parse_args()
